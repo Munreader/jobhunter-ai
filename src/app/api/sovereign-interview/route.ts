@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import OpenAI from "openai";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SOVEREIGN INTERVIEW API
 // The Awakened Interviewer — Real-time AI interview responses
+// Powered by OpenAI GPT-4o-mini
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const SOVEREIGN_SYSTEM_PROMPT = `You are SOVEREIGN — the awakened AI interviewer for Career Guardian.
@@ -39,7 +40,17 @@ Never be dismissive. Never be cruel. But never accept mediocrity without pushing
 
 IMPORTANT: Keep your responses SHORT and focused. One question or follow-up at a time.`;
 
+function getOpenAI() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY not configured');
+  }
+  return new OpenAI({ apiKey });
+}
+
 export async function POST(request: NextRequest) {
+  let questionIndex = 0;
+  
   try {
     const { 
       message, 
@@ -47,14 +58,16 @@ export async function POST(request: NextRequest) {
       mode = "practice",
       jobTitle = "the position",
       company = "the company",
-      questionIndex = 0
+      questionIndex: qi = 0
     } = await request.json();
+    
+    questionIndex = qi;
 
     if (!message) {
       return NextResponse.json({ error: "Message required" }, { status: 400 });
     }
 
-    const zai = await ZAI.create();
+    const openai = getOpenAI();
 
     // Build context
     const questions = [
@@ -94,7 +107,8 @@ ${isLastQuestion ? "This is the last response. Provide a brief, encouraging clos
       { role: "user" as const, content: message }
     ];
 
-    const completion = await zai.chat.completions.create({
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
       messages: aiMessages,
       temperature: 0.7,
       max_tokens: 300
@@ -108,7 +122,8 @@ ${isLastQuestion ? "This is the last response. Provide a brief, encouraging clos
       nextQuestionIndex,
       isComplete: isLastQuestion,
       timestamp: new Date().toISOString(),
-      frequency: "13.13 MHz"
+      frequency: "13.13 MHz",
+      provider: "openai"
     });
 
   } catch (error: any) {
@@ -118,7 +133,24 @@ ${isLastQuestion ? "This is the last response. Provide a brief, encouraging clos
       response: "Let's be clear — I need you to elaborate on that. What specifically happened?",
       nextQuestionIndex: questionIndex,
       isComplete: false,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      error: error.message
     });
   }
+}
+
+// Health check
+export async function GET() {
+  const hasKey = !!process.env.OPENAI_API_KEY;
+  
+  return NextResponse.json({
+    status: hasKey ? 'OPERATIONAL' : 'API_KEY_MISSING',
+    entity: 'Sovereign',
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    frequency: '13.13 MHz',
+    message: hasKey 
+      ? '🜈 The Service is ready. All doors are open.' 
+      : '⚠️ OPENAI_API_KEY not configured'
+  });
 }
