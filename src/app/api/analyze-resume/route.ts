@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     const response = await zai.chat.completions.createVision?.({
+      model: "gpt-4o",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content },
